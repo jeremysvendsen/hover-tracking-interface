@@ -26,7 +26,7 @@
 //#include "TuioPoint.h"
 
 //#include <list>
-//#include <math.h>
+#include <math.h>
 
 #include "TuioServer.h"
 #include "TuioClient.h"
@@ -59,6 +59,7 @@ void initiateCamera();
 void sendPoint(CvPoint point,IplImage *image, int state);
 void cropImage(IplImage *image);
 bool fingerPressed(IplImage *image, CvPoint fingerTip);
+void createCalibrationMatrix();
 
 //The labels min,max, and average are used by the math library.  Had to name them something different.
 IplImage *aveX;
@@ -81,13 +82,14 @@ int main(int argc, char* argv[])
 	//const char *host = "localhost";
 	tuioServer = new TuioServer();
 
-	playVideo();
+	//playVideo();
+	createCalibrationMatrix();
+
 	//delete tuioServer;
 	//printf("Done, pausing.\n");
 	//system("pause");
 	return 0;
 }
-
 void playVideo(){
 
 	bool saveVideo = false;
@@ -139,13 +141,13 @@ void playVideo(){
 
 	mouseLocation = cvPoint(0,0);
 
-	char key;
+	int key;
 	IplImage *previousFrame = NULL;
 	IplImage *frameCopy = NULL;
 	//IplImage *videoFrame = NULL;
 	IplImage *pauseCopy = NULL;
 	IplImage *pCopy = NULL;
-	char lastKey = 'f';
+	int lastKey = 'f';
 	//IplImage *bwFrame;
 
 	if(!video && !pointgreyCamera){
@@ -158,12 +160,12 @@ void playVideo(){
 
 		if(pointgreyCamera){
 			videoFrame = grabImage();
-			//cropImage(videoFrame);
+			cropImage(videoFrame);
 			//cvCanny(videoFrame,videoFrame,30,120,3);
 		}
 		else{
 			videoFrame = cvQueryFrame(video);
-			//cropImage(videoFrame);
+			cropImage(videoFrame);
 		}
 
 		if(!videoFrame){
@@ -227,7 +229,8 @@ void playVideo(){
 						break;
 					}
 					if(key == 's'){
-						cvSaveImage("stillFrame.bmp",videoFrame);
+						cvSaveImage("opticalFlow.bmp",pCopy);
+						cvSaveImage("originalImage.bmp",frameCopy);
 					}
 				}
 			}
@@ -313,7 +316,7 @@ void displayOpticalFlow(IplImage *previousFrame, IplImage *currentFrame){
 	//cvCalcOpticalFlowLK(bwPreviousFrame,bwCurrentFrame,winSize,velx,vely);
 	//cvCalcOpticalFlowBM(bwPreviousFrame,bwCurrentFrame,winSize,cvSize(2,2),cvSize(16,16),0,velx,vely);
 	cvCalcOpticalFlowBM(bwPreviousFrame,bwCurrentFrame,winSize,shiftSize,cvSize(16,16),0,velx,vely);
-	//drawArrows(currentFrame,velx,vely,winSize);
+	drawArrows(currentFrame,velx,vely,winSize);
 	//drawAverage(currentFrame,velx,vely,winSize);
 	findTopPoint(currentFrame,velx,vely,winSize);
 
@@ -331,11 +334,17 @@ void drawArrows(IplImage *currentFrame, IplImage *velx, IplImage *vely, CvSize w
 	CvPoint lineOrigin;
 	CvPoint lineEnd;
 	CvPoint boxCenter;
+	CvPoint arrowHeadEnd;
+	double pi = 3.141592654;
+	double alpha = 45*(180/pi),theta, phi;
+	int r = 5;
 	int index;
 	double scaleFactor = 0.2;
 	double minVel = 16;
 	double maxVel = 64;
 	double maxFoundVel = 48;
+
+	CvScalar colour = cvScalar(255,0,255);
 
 	for(int i = 0; i < velx->width; i++){
 		for(int j = 0; j < velx->height; j++){
@@ -361,8 +370,23 @@ void drawArrows(IplImage *currentFrame, IplImage *velx, IplImage *vely, CvSize w
 			lineEnd.x = (int) (boxCenter.x + (arrowLength/2)*velxD[index]*scaleFactor);
 			lineEnd.y = (int) (boxCenter.y + (arrowLength/2)*velyD[index]*scaleFactor);
 
-			cvDrawLine(currentFrame,lineOrigin,lineEnd,cvScalar(255,255,128),3);
-			cvDrawCircle(currentFrame,lineOrigin,5,cvScalar(255,255,128),-1);
+			cvDrawLine(currentFrame,lineOrigin,lineEnd,colour,1);
+			//cvDrawCircle(currentFrame,lineOrigin,5,cvScalar(255,255,128),-1);
+
+			theta = atan(((double) (lineEnd.y - lineOrigin.y))/(lineEnd.x - lineOrigin.x));
+
+			if(lineEnd.x > lineOrigin.x){
+				theta = theta + pi;
+			}
+			//side 1
+			phi = (theta + alpha + pi);
+			arrowHeadEnd = cvPoint(lineEnd.x + r*cos(phi),lineEnd.y + r*sin(phi));
+			cvDrawLine(currentFrame,lineEnd,arrowHeadEnd,colour,1);
+
+			//side 2
+			phi = (theta - alpha + pi);
+			arrowHeadEnd = cvPoint(lineEnd.x + r*cos(phi),lineEnd.y + r*sin(phi));
+			cvDrawLine(currentFrame,lineEnd,arrowHeadEnd,colour,1);
 		}
 	}
 	//printf("max arrow value is %f\n",maxFoundVel);
@@ -537,7 +561,6 @@ void findTopPoint(IplImage *image, IplImage *velx, IplImage *vely, CvSize winSiz
 	bool pressed = false;
 	CvPoint foundPoint;
 
-	//Determining where the center of the hand is.
 	int index;
 	for(int i = 0; i < velx->width; i++){
 		for(int j = 0; j < velx->height; j++){
@@ -564,7 +587,6 @@ void findTopPoint(IplImage *image, IplImage *velx, IplImage *vely, CvSize winSiz
 		y = lastHandPoint.y;
 	}
 
-	//Finds the top of the finger.
 	int counter = 0;
 	if((totalResults > 0 || !firstRun) && !isBlack(image,x,y)){
 		if(totalResults > 0){
@@ -578,13 +600,10 @@ void findTopPoint(IplImage *image, IplImage *velx, IplImage *vely, CvSize winSiz
 		bool incremented = false;
 		while(!atTop){
 			atTop = true;
-			/*
 			for(; !isBlack(image,leftPoint.x,leftPoint.y) && leftPoint.x > 0; leftPoint.x--){
 			}
 			for(; !isBlack(image,rightPoint.x,rightPoint.y) && rightPoint.x < image->width - 1; rightPoint.x++){
-			}*/
-			leftPoint.x = 0;
-			rightPoint.x = image->width - 1;
+			}
 
 			while(!isBlackLine(image,leftPoint,rightPoint) && (leftPoint.y > 0)){
 				incremented = true;
@@ -688,10 +707,10 @@ void findTopOfFinger(IplImage *image){
 		if(totalPoints > 0){
 			//cvDrawCircle(image,cvPoint(aveX,leftPoint.y),5,cvScalar(255,255,128),-1);
 			if(fingerPressed(image,cvPoint(aveX,leftPoint.y - 1))){
-				cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),-1);
+				//cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),-1);
 			}
 			else{
-				cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),1);
+				//cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),1);
 			}
 
 			printf("Drawing circle at x,y = %d,%d. \n",aveX,leftPoint.y);
@@ -995,7 +1014,7 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 	static int currentState = 0;
 	static int newState = 0;
 	static int newStateCounter = 0;
-	int framesForStateChange = 2;
+	int framesForStateChange = 3;
 	int previousState = 0;
 	bool stateChange = false;
 
@@ -1025,7 +1044,7 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 
 	if(stateChange){
 		if(previousState == 1){
-			//printf("Removing tuio object.\n");
+			printf("Removing tuio object.\n");
 			tuioServer->removeTuioObject(hover);
 		}
 		if(previousState == 2){
@@ -1056,10 +1075,10 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 
 	//Now draw a circle.
 	if(currentState == 1){
-		cvDrawCircle(image,point,5,cvScalar(255,255,128),1);
+		//cvDrawCircle(image,point,5,cvScalar(255,255,128),1);
 	}
 	if(currentState == 2){
-		cvDrawCircle(image,point,5,cvScalar(255,255,128),-1);
+		//cvDrawCircle(image,point,5,cvScalar(255,255,128),-1);
 	}
 
 	/*
@@ -1082,15 +1101,6 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 }
 void cropImage(IplImage *image){
 
-	/*
-	//IplImage *newImage = cvCreateImage(cvSize(image->width - 200, image->height - 200),IPL_DEPTH_8U,image->nChannels);
-	cvSetImageROI(image,cvRect(100,100,image->width - 200,image->height - 200));
-	IplImage *newImage = cvCloneImage(image);
-	cvResetImageROI(image);
-
-	cvReleaseImage(&image);
-	return(newImage);*/
-
 	for(int i = 0; i < image->width; i++){
 		for(int j = 0; j < image->height; j++){
 			if(i < 100 || i >= image->width - 100 || j < 100 || j >= image->height - 100){
@@ -1102,10 +1112,8 @@ void cropImage(IplImage *image){
 bool fingerPressed(IplImage *image, CvPoint fingerTip){
 	//This goes down 10 pixels from the
 
-	int distance = 20;
-	int difference = 22;
-	int decrease = 10;
-	int peak = 0;
+	int distance = 10;
+	int difference = 25;
 	bool foundLine = false;
 
 	if(fingerTip.y > image->height - distance){
@@ -1119,21 +1127,61 @@ bool fingerPressed(IplImage *image, CvPoint fingerTip){
 	for(int y = fingerTip.y; y < fingerTip.y + distance; y++){
 		colour = getColour(image,fingerTip.x,y);
 		lastColour = getColour(image,fingerTip.x,y - 1);
-		if(peak < colour.val[0]){
-			peak = colour.val[0];
-		}
-		else if(peak - decrease > colour.val[0]){
-			foundLine = true;
-		}
-		/*
 		if(maxColourDifference < lastColour.val[0] - colour.val[0]){
 			maxColourDifference = lastColour.val[0] - colour.val[0];
 		}
 		if(colour.val[0] > lastColour.val[0] + difference){
 			foundLine = true;
-		}*/
+		}
 	}
-	//printf("peak = %d and last colour = %f \n", peak, colour.val[0]);
-
+	//if(!foundLine){
+		//printf("Max difference is %d.\n", maxColourDifference);
+	//}
 	return(foundLine);
+}
+void createCalibrationMatrix(){
+	//See the learning openCV book for information on how this works.
+	//Some lines were taken from the book.
+
+	const char *videoFilename = "calib.avi";
+	CvCapture *video = NULL;
+	video = cvCreateFileCapture(videoFilename);
+	if(!video){
+		cout << "Error, cannot find chessboard video." << endl;
+		return;
+	}
+
+	int totalFrames = cvGetCaptureProperty(video, CV_CAP_PROP_FRAME_COUNT);
+
+	int board_w = 8, board_h = 6;
+	int board_points = board_w*board_h;
+	CvSize board_size = cvSize(board_w,board_h);
+
+	//Storage space.
+	CvMat *image_points = cvCreateMat(board_points*board_points,2,CV_32FC1);
+	CvMat *object_points = cvCreateMat(board_points*board_points,3,CV_32FC1);
+	CvMat *point_counts = cvCreateMat(board_points,1,CV_32FC1);
+	CvMat *intrinsic_matrix = cvCreateMat(3,3,CV_32FC1);
+	CvMat *distortion_coeffs = cvCreateMat(5,1,CV_32FC1);
+
+	CvPoint2D32f *corners = new CvPoint2D32f[board_points];
+
+	IplImage *image;
+	IplImage *grey_image = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,1);
+
+	int successful_readings = 0;
+	int corner_count;
+	int step;
+	int frame_skip = 10;
+	for(int frame = 0; frame < totalFrames; frame += frame_skip){
+
+		cvSetCaptureProperty(video,CV_CAP_PROP_POS_FRAMES,frame);
+		image = cvQueryFrame(video);
+		int found = cvFindChessboardCorners(image,board_size,corners,&corner_count,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
+
+		cout << "For frame " << frame << ", number of points found is " << found << endl;
+
+	}
+
+	cvReleaseCapture(&video);
 }
