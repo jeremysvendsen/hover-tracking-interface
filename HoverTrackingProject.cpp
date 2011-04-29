@@ -60,6 +60,7 @@ void sendPoint(CvPoint point,IplImage *image, int state);
 void cropImage(IplImage *image);
 bool fingerPressed(IplImage *image, CvPoint fingerTip);
 void createCalibrationMatrix();
+IplImage *calibrateImage(IplImage *image);
 
 //The labels min,max, and average are used by the math library.  Had to name them something different.
 IplImage *aveX;
@@ -73,6 +74,10 @@ PGRGuid gui;
 TuioServer *tuioServer;
 TuioCursor *cursor;
 TuioObject *hover;
+
+CvMat *intrinsic;
+CvMat *distortion;
+
 //bool firstCursor = true;
 
 //int _tmain(int argc, _TCHAR* argv[])
@@ -82,8 +87,17 @@ int main(int argc, char* argv[])
 	//const char *host = "localhost";
 	tuioServer = new TuioServer();
 
-	//playVideo();
-	createCalibrationMatrix();
+	intrinsic = NULL;
+	distortion = NULL;
+	intrinsic = (CvMat*) cvLoad("Intrinsics.xml");
+	distortion = (CvMat*) cvLoad("Distortions.xml");
+	if(!intrinsic || !distortion){
+		cout << "Failed to load calibration matrices." << endl;
+		return(0);
+	}
+
+	playVideo();
+	//createCalibrationMatrix();
 
 	//delete tuioServer;
 	//printf("Done, pausing.\n");
@@ -96,7 +110,7 @@ void playVideo(){
 	bool displayVideo = true;
 	bool subtractBackground = false;
 	bool pointgreyCamera = true;
-	bool opticalFlow = true;
+	bool opticalFlow = false;
 	//bool remBack = true;
 
 	const char *videoFilename;
@@ -157,21 +171,24 @@ void playVideo(){
 	for(int frame = 0; frame < totalFrames || pointgreyCamera; frame++){
 		//printf("Frame %d \n",frame);
 		IplImage *videoFrame = NULL;
+		IplImage *image = NULL;
 
 		if(pointgreyCamera){
-			videoFrame = grabImage();
-			cropImage(videoFrame);
+			image = grabImage();
+			//cropImage(videoFrame);
 			//cvCanny(videoFrame,videoFrame,30,120,3);
 		}
 		else{
-			videoFrame = cvQueryFrame(video);
-			cropImage(videoFrame);
+			image = cvQueryFrame(video);
+			//cropImage(videoFrame);
 		}
+		videoFrame = calibrateImage(image);
 
 		if(!videoFrame){
 			printf("videoFrame is null.\n");
 			break;
 		}
+
 		//cvSaveImage("testing.bmp",videoFrame);
 		cvSetMouseCallback(windowName,mouseDown, (void*) videoFrame);
 
@@ -255,7 +272,7 @@ void playVideo(){
 		if(saveVideo){
 			cvWriteFrame(writer,videoFrame);
 		}
-		//cvReleaseImage(&videoFrame);
+		cvReleaseImage(&videoFrame);
 	}
 	if(saveVideo){
 		cvReleaseVideoWriter(&writer);
@@ -1256,3 +1273,25 @@ void createCalibrationMatrix(){
 	cvReleaseImage(&grey_image);
 	cvReleaseCapture(&video);
 }
+IplImage *calibrateImage(IplImage *image){
+
+	IplImage *mapx = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
+	IplImage *mapy = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
+	cvInitUndistortMap(intrinsic,distortion,mapx,mapy);
+
+	IplImage *new_image;
+	new_image = cvCloneImage(image);
+
+	//new_image = cvCreateImage(cvSize(image->width*2,image->height*2),IPL_DEPTH_8U,image->nChannels);
+	//cvZero(new_image);
+	//IplImage *calib_image = cvCloneImage(new_image);
+	//cvSetImageROI(new_image,cvRect(image->width/2,image->height/2,image->width,image->height));
+	//cvCopy(image,new_image);
+
+	//cvRemap(new_image,calib_image,mapx,mapy);
+	cvRemap(image,new_image,mapx,mapy);
+
+	//cvReleaseImage(&new_image);
+	return(new_image);
+}
+
