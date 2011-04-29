@@ -92,7 +92,8 @@ int main(int argc, char* argv[])
 	intrinsic = (CvMat*) cvLoad("Intrinsics.xml");
 	distortion = (CvMat*) cvLoad("Distortions.xml");
 	if(!intrinsic || !distortion){
-		cout << "Failed to load calibration matrices." << endl;
+		//cout << "Failed to load calibration matrices." << endl;
+		printf("Failed to load calibration matrices.\n");
 		return(0);
 	}
 
@@ -1164,7 +1165,8 @@ void createCalibrationMatrix(){
 	CvCapture *video = NULL;
 	video = cvCreateFileCapture(videoFilename);
 	if(!video){
-		cout << "Error, cannot find chessboard video." << endl;
+		//cout << "Error, cannot find chessboard video." << endl;
+		printf("Cannot find chessboard video.\n");
 		return;
 	}
 
@@ -1203,7 +1205,7 @@ void createCalibrationMatrix(){
 		}
 		int found = cvFindChessboardCorners(image,board_size,corners,&corner_count,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
 
-		cout << "For frame " << frame << ", number of points found is " << corner_count << endl;
+		//cout << "For frame " << frame << ", number of points found is " << corner_count << endl;
 
 		cvDrawChessboardCorners(image,board_size,corners,corner_count,found);
 		//cvSaveImage("image.bmp",image);
@@ -1224,7 +1226,7 @@ void createCalibrationMatrix(){
 			successes++;
 		}
 	}
-	cout << "Number of successes is " << successes << endl;
+	//cout << "Number of successes is " << successes << endl;
 
 	/*
 	CvMat *object_points2 = cvCreateMat(successes*board_points,3,CV_32FC1);
@@ -1239,8 +1241,10 @@ void createCalibrationMatrix(){
 	}*/
 
 	if(successes != total_frames){
-		cout << "Error, did not find all the points on all the frames." << endl;
-		cout << "Successes is " << successes << ", total_frames = " << total_frames << endl;
+		//cout << "Error, did not find all the points on all the frames." << endl;
+		//cout << "Successes is " << successes << ", total_frames = " << total_frames << endl;
+		printf("Error, did not find all the points on all the frames.\n");
+		printf("Successes is %d, total frames = %d.\n",successes,total_frames);
 		return;
 	}
 
