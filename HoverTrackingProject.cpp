@@ -75,9 +75,8 @@ TuioServer *tuioServer;
 TuioCursor *cursor;
 TuioObject *hover;
 
-CvMat *intrinsic;
-CvMat *distortion;
-
+IplImage *mapx;
+IplImage *mapy;
 //bool firstCursor = true;
 
 //int _tmain(int argc, _TCHAR* argv[])
@@ -87,10 +86,13 @@ int main(int argc, char* argv[])
 	//const char *host = "localhost";
 	tuioServer = new TuioServer();
 
-	intrinsic = NULL;
-	distortion = NULL;
+	CvMat *intrinsic = NULL;
+	CvMat *distortion = NULL;
 	intrinsic = (CvMat*) cvLoad("Intrinsics.xml");
 	distortion = (CvMat*) cvLoad("Distortions.xml");
+	mapx = cvCreateImage(cvSize(640,480),IPL_DEPTH_32F,1);
+	mapy = cvCreateImage(cvSize(640,480),IPL_DEPTH_32F,1);
+	cvInitUndistortMap(intrinsic,distortion,mapx,mapy);
 	if(!intrinsic || !distortion){
 		//cout << "Failed to load calibration matrices." << endl;
 		printf("Failed to load calibration matrices.\n");
@@ -110,7 +112,7 @@ void playVideo(){
 	bool saveVideo = false;
 	bool displayVideo = true;
 	bool subtractBackground = false;
-	bool pointgreyCamera = true;
+	bool pointgreyCamera = false;
 	bool opticalFlow = false;
 	//bool remBack = true;
 
@@ -119,6 +121,8 @@ void playVideo(){
 	CvSize videoSize;
 	double fps = 20;
 	int totalFrames = 0;
+	IplImage *previousFrame = NULL;
+	IplImage *frameCopy = NULL;
 
 	if(!pointgreyCamera){
 		videoFilename = "touch_to_left_hover_to_right.avi";
@@ -157,8 +161,6 @@ void playVideo(){
 	mouseLocation = cvPoint(0,0);
 
 	int key;
-	IplImage *previousFrame = NULL;
-	IplImage *frameCopy = NULL;
 	//IplImage *videoFrame = NULL;
 	IplImage *pauseCopy = NULL;
 	IplImage *pCopy = NULL;
@@ -274,6 +276,7 @@ void playVideo(){
 			cvWriteFrame(writer,videoFrame);
 		}
 		cvReleaseImage(&videoFrame);
+		cvReleaseImage(&frameCopy);
 	}
 	if(saveVideo){
 		cvReleaseVideoWriter(&writer);
@@ -293,11 +296,11 @@ void playVideo(){
 		cvReleaseCapture(&video);
 	}
 	if(frameCopy){
-		//cvReleaseImage(&frameCopy);
+		cvReleaseImage(&frameCopy);
 	}
 	//cvReleaseImage(&bwFrame);
 	if(previousFrame){
-		//cvReleaseImage(&previousFrame);
+		cvReleaseImage(&previousFrame);
 	}
 }
 void displayOpticalFlow(IplImage *previousFrame, IplImage *currentFrame){
@@ -1278,10 +1281,6 @@ void createCalibrationMatrix(){
 	cvReleaseCapture(&video);
 }
 IplImage *calibrateImage(IplImage *image){
-
-	IplImage *mapx = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
-	IplImage *mapy = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
-	cvInitUndistortMap(intrinsic,distortion,mapx,mapy);
 
 	IplImage *new_image;
 	new_image = cvCloneImage(image);
