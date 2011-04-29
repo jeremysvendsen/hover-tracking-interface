@@ -1151,37 +1151,108 @@ void createCalibrationMatrix(){
 		return;
 	}
 
-	int totalFrames = cvGetCaptureProperty(video, CV_CAP_PROP_FRAME_COUNT);
+	int frame_skip = 4;
+	int video_frames = cvGetCaptureProperty(video, CV_CAP_PROP_FRAME_COUNT);
+	int total_frames = video_frames/frame_skip;
 
-	int board_w = 8, board_h = 6;
+	int board_w = 6, board_h = 8;
 	int board_points = board_w*board_h;
 	CvSize board_size = cvSize(board_w,board_h);
 
 	//Storage space.
-	CvMat *image_points = cvCreateMat(board_points*board_points,2,CV_32FC1);
-	CvMat *object_points = cvCreateMat(board_points*board_points,3,CV_32FC1);
-	CvMat *point_counts = cvCreateMat(board_points,1,CV_32FC1);
+	CvMat *image_points = cvCreateMat(total_frames*board_points,2,CV_32FC1);
+	CvMat *object_points = cvCreateMat(total_frames*board_points,3,CV_32FC1);
+	CvMat *point_counts = cvCreateMat(total_frames,1,CV_32SC1);
 	CvMat *intrinsic_matrix = cvCreateMat(3,3,CV_32FC1);
 	CvMat *distortion_coeffs = cvCreateMat(5,1,CV_32FC1);
+	cvZero(intrinsic_matrix);
+	cvZero(distortion_coeffs);
 
 	CvPoint2D32f *corners = new CvPoint2D32f[board_points];
 
-	IplImage *image;
+	IplImage *image = NULL;
 	IplImage *grey_image = cvCreateImage(cvSize(640,480),IPL_DEPTH_8U,1);
 
-	int successful_readings = 0;
+	int successes = 0;
 	int corner_count;
 	int step;
-	int frame_skip = 10;
-	for(int frame = 0; frame < totalFrames; frame += frame_skip){
+	cvNamedWindow("window",CV_WINDOW_AUTOSIZE);
+	for(int frame = 0; frame < video_frames; frame += frame_skip){
 
 		cvSetCaptureProperty(video,CV_CAP_PROP_POS_FRAMES,frame);
 		image = cvQueryFrame(video);
+		if(!image){
+			break;
+		}
 		int found = cvFindChessboardCorners(image,board_size,corners,&corner_count,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FILTER_QUADS);
 
-		cout << "For frame " << frame << ", number of points found is " << found << endl;
+		cout << "For frame " << frame << ", number of points found is " << corner_count << endl;
 
+		cvDrawChessboardCorners(image,board_size,corners,corner_count,found);
+		//cvSaveImage("image.bmp",image);
+		cvWaitKey(10);
+		cvShowImage("window",image);
+
+
+		if(corner_count == board_points){
+			step = successes*board_points;
+			for(int i = step, j = 0; j < board_points; ++i, ++j){
+				CV_MAT_ELEM(*image_points,float,i,0) = corners[j].x;
+				CV_MAT_ELEM(*image_points,float,i,1) = corners[j].y;
+				CV_MAT_ELEM(*object_points,float,i,0) = j/board_w;
+				CV_MAT_ELEM(*object_points,float,i,1) = j % board_w;
+				CV_MAT_ELEM(*object_points,float,i,2) = 0.0f;
+			}
+			CV_MAT_ELEM(*point_counts,int,successes,0) = board_points;
+			successes++;
+		}
+	}
+	cout << "Number of successes is " << successes << endl;
+
+	/*
+	CvMat *object_points2 = cvCreateMat(successes*board_points,3,CV_32FC1);
+	CvMat *image_points2 = cvCreateMat(successes*board_points,2,CV_32FC1);
+	CvMat *point_counts2 = cvCreateMat(successes,1,CV_32SC1);
+
+	for(int i = 0; i < successes*board_points; ++i){
+		CV_MAT_ELEM(*image_points2,float,i,0) = CV_MAT_ELEM(*image_points,float,i,0);
+
+
+
+	}*/
+
+	if(successes != total_frames){
+		cout << "Error, did not find all the points on all the frames." << endl;
+		cout << "Successes is " << successes << ", total_frames = " << total_frames << endl;
+		return;
 	}
 
+	CV_MAT_ELEM(*intrinsic_matrix,float,0,0) = 1.0f;
+	CV_MAT_ELEM(*intrinsic_matrix,float,1,1) = 1.0f;
+
+	cvCalibrateCamera2(object_points,image_points,point_counts,cvGetSize(image),intrinsic_matrix,distortion_coeffs,NULL,NULL,0);
+
+	cvSave("Intrinsics.xml",intrinsic_matrix);
+	cvSave("Distortions.xml",distortion_coeffs);
+
+	IplImage *mapx = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
+	IplImage *mapy = cvCreateImage(cvGetSize(image),IPL_DEPTH_32F,1);
+	cvInitUndistortMap(intrinsic_matrix,distortion_coeffs,mapx,mapy);
+
+	cvSetCaptureProperty(video,CV_CAP_PROP_POS_FRAMES,0);
+	for(int frame = 0; frame < video_frames; frame++){
+		image = cvQueryFrame(video);
+		IplImage *image_clone = cvCloneImage(image);
+
+		cvRemap(image,image_clone,mapx,mapy);
+		cvShowImage("window",image_clone);
+
+		cvWaitKey(20);
+
+		cvReleaseImage(&image_clone);
+	}
+
+
+	cvReleaseImage(&grey_image);
 	cvReleaseCapture(&video);
 }
