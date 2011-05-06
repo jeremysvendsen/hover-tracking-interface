@@ -734,7 +734,7 @@ void findTopOfFinger(IplImage *image){
 				cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),1);
 			}
 
-			printf("Drawing circle at x,y = %d,%d. \n",aveX,leftPoint.y);
+			//printf("Drawing circle at x,y = %d,%d. \n",aveX,leftPoint.y);
 			//sendPoint(cvPoint(aveX,leftPoint.y));
 		}
 		else{
@@ -1133,9 +1133,10 @@ void cropImage(IplImage *image){
 bool fingerPressed(IplImage *image, CvPoint fingerTip){
 	//This goes down 10 pixels from the
 
-	int distance = 10;
-	int difference = 25;
-	bool foundLine = false;
+	int distance = 28;
+	int accepted_difference = 48;
+	int offset_from_top = 2;
+	bool foundTouch = false;
 
 	if(fingerTip.y > image->height - distance){
 		printf("Failed to test fingertip.\n");
@@ -1144,21 +1145,32 @@ bool fingerPressed(IplImage *image, CvPoint fingerTip){
 
 	//int maxValue = 0;
 	CvScalar colour, lastColour;
-	int maxColourDifference = 0;
-	for(int y = fingerTip.y; y < fingerTip.y + distance; y++){
+	//int maxColourDifference = 0;
+	int maxIntensity = 0;
+	int minIntensity = 100;
+	for(int y = fingerTip.y + offset_from_top; y < fingerTip.y + distance; y++){
 		colour = getColour(image,fingerTip.x,y);
 		lastColour = getColour(image,fingerTip.x,y - 1);
-		if(maxColourDifference < lastColour.val[0] - colour.val[0]){
-			maxColourDifference = lastColour.val[0] - colour.val[0];
+		if (maxIntensity < colour.val[0]) {
+			maxIntensity = colour.val[0];
 		}
-		if(colour.val[0] > lastColour.val[0] + difference){
-			foundLine = true;
+		if (minIntensity > colour.val[0]) {
+			minIntensity = colour.val[0];
 		}
+//		if(maxColourDifference < lastColour.val[0] - colour.val[0]){
+//			maxColourDifference = lastColour.val[0] - colour.val[0];
+//		}
+//		if(colour.val[0] > lastColour.val[0] + difference){
+//			foundLine = true;
+//		}
 	}
 	//if(!foundLine){
 		//printf("Max difference is %d.\n", maxColourDifference);
 	//}
-	return(foundLine);
+	if((maxIntensity - minIntensity) > accepted_difference ) {
+		foundTouch = true;
+	}
+	return(foundTouch);
 }
 void createCalibrationMatrix(){
 	//See the learning openCV book for information on how this works.
