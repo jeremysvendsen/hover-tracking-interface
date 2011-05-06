@@ -160,11 +160,11 @@ void playVideo(){
 
 	mouseLocation = cvPoint(0,0);
 
-	int key;
+	char key;
 	//IplImage *videoFrame = NULL;
 	IplImage *pauseCopy = NULL;
 	IplImage *pCopy = NULL;
-	int lastKey = 'f';
+	char lastKey = 'f';
 	//IplImage *bwFrame;
 
 	if(!video && !pointgreyCamera){
@@ -728,17 +728,17 @@ void findTopOfFinger(IplImage *image){
 		if(totalPoints > 0){
 			//cvDrawCircle(image,cvPoint(aveX,leftPoint.y),5,cvScalar(255,255,128),-1);
 			if(fingerPressed(image,cvPoint(aveX,leftPoint.y - 1))){
-				//cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),-1);
+				cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),-1);
 			}
 			else{
-				//cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),1);
+				cvDrawCircle(image,cvPoint(aveX,leftPoint.y - 1),5,cvScalar(255,255,128),1);
 			}
 
 			printf("Drawing circle at x,y = %d,%d. \n",aveX,leftPoint.y);
 			//sendPoint(cvPoint(aveX,leftPoint.y));
 		}
 		else{
-			printf("Not drawing point.\n");
+			//printf("Not drawing point.\n");
 		}
 	}
 	else{
