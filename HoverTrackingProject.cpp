@@ -112,7 +112,7 @@ void playVideo(){
 	bool saveVideo = false;
 	bool displayVideo = true;
 	bool subtractBackground = false;
-	bool pointgreyCamera = false;
+	bool pointgreyCamera = true;
 	bool opticalFlow = false;
 	//bool remBack = true;
 
@@ -276,7 +276,7 @@ void playVideo(){
 			cvWriteFrame(writer,videoFrame);
 		}
 		cvReleaseImage(&videoFrame);
-		cvReleaseImage(&frameCopy);
+		//cvReleaseImage(&frameCopy);
 	}
 	if(saveVideo){
 		cvReleaseVideoWriter(&writer);
