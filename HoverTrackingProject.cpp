@@ -2,8 +2,8 @@
 // Name        : HoverTrackingProject.cpp
 // Author      : 
 // Version     :
-// Copyright   : Your copyright notice
-// Description : Hello World in C++, Ansi-style
+// Copyright   :
+// Description : An experimental code to track hovering hand and detect touch
 //============================================================================
 // ArasProject.cpp : Defines the entry point for the console application.
 //
@@ -113,7 +113,7 @@ void playVideo(){
 	bool displayVideo = true;
 	bool subtractBackground = false;
 	bool pointgreyCamera = true;
-	bool opticalFlow = false;
+	bool opticalFlow = true;
 	//bool remBack = true;
 
 	const char *videoFilename;
@@ -203,6 +203,7 @@ void playVideo(){
 			cvThreshold(videoFrame,videoFrame,20,0,CV_THRESH_TOZERO);
 		}
 		//cvSmooth(videoFrame,videoFrame,CV_BLUR,5);
+		cvSmooth(videoFrame,videoFrame,CV_MEDIAN);
 
 		if(frame > 0){
 			cvCopyImage(videoFrame,frameCopy);
@@ -267,6 +268,7 @@ void playVideo(){
 				//remBack = !remBack;
 				subtractBackground = !subtractBackground;
 			}
+
 
 			displayResults(videoFrame);
 			cvShowImage(windowName,videoFrame);
@@ -742,7 +744,7 @@ void findTopOfFinger(IplImage *image){
 		}
 	}
 	else{
-		printf("Seed is 0.\n");
+		//printf("Seed is 0.\n");
 	}
 
 }
@@ -1065,7 +1067,7 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 
 	if(stateChange){
 		if(previousState == 1){
-			printf("Removing tuio object.\n");
+			//printf("Removing tuio object.\n");
 			tuioServer->removeTuioObject(hover);
 		}
 		if(previousState == 2){
@@ -1096,10 +1098,10 @@ void sendPoint(CvPoint point,IplImage *image, int state){
 
 	//Now draw a circle.
 	if(currentState == 1){
-		//cvDrawCircle(image,point,5,cvScalar(255,255,128),1);
+		cvDrawCircle(image,point,5,cvScalar(255,255,128),1);
 	}
 	if(currentState == 2){
-		//cvDrawCircle(image,point,5,cvScalar(255,255,128),-1);
+		cvDrawCircle(image,point,5,cvScalar(255,255,128),-1);
 	}
 
 	/*
@@ -1133,8 +1135,8 @@ void cropImage(IplImage *image){
 bool fingerPressed(IplImage *image, CvPoint fingerTip){
 	//This goes down 10 pixels from the
 
-	int distance = 28;
-	int accepted_difference = 48;
+	int distance = 25;
+	int accepted_difference = 45;
 	int offset_from_top = 2;
 	bool foundTouch = false;
 
